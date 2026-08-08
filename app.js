@@ -19,7 +19,6 @@ const ICONS = {
   trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
   close:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   eye:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
-  print:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
   filter:'<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
@@ -137,8 +136,6 @@ const App = {
       if (!Array.isArray(e.meds)) e.meds = [];
       if (!('medNote' in e)) e.medNote = '';
       if (!('usNote' in e)) e.usNote = '';
-      if (!('cpAscites' in e)) e.cpAscites = null;
-      if (!('cpEnceph' in e))  e.cpEnceph  = null;
       // 迁移旧版脾厚字段
       if ('SPLEEN_T' in e.values && !('SP_SUP_T' in e.values)) {
         e.values['SP_SUP_T'] = e.values['SPLEEN_T'];
@@ -223,6 +220,19 @@ const App = {
   save() {
     localStorage.setItem(STORE_KEY, JSON.stringify(this.data));
   },
+  // 轻量 Toast 提示（success / error / info），数秒后自动关闭
+  toast(msg, type='success', ms=2600) {
+    const wrap = document.getElementById('toastWrap');
+    if (!wrap) return;
+    const el = document.createElement('div');
+    el.className = 'toast ' + type;
+    const ic = type==='error' ? '✕' : type==='info' ? 'i' : '✓';
+    el.innerHTML = `<span class="tc-ic">${ic}</span><span>${msg}</span>`;
+    wrap.appendChild(el);
+    const remove = () => { el.classList.add('out'); setTimeout(()=>el.remove(), 260); };
+    const timer = setTimeout(remove, ms);
+    el.addEventListener('click', () => { clearTimeout(timer); remove(); });
+  },
 
   sortedExams() {
     return [...this.data.examinations].sort((a,b) => a.date.localeCompare(b.date));
@@ -266,7 +276,7 @@ const App = {
     this.settingsTab = 'data';
     this.renderAll(); this.renderSettings(); this.checkExportWarn();
     this.go('dashboard');
-    alert('已清空所有数据，恢复到初始状态。');
+    this.toast('已清空所有数据', 'info', 3000);
   },
 
   renderAll() {
@@ -298,42 +308,6 @@ const App = {
     return alerts;
   },
 
-  // ---------- C3: MELD 评分 ----------
-  computeMELD(exam) {
-    if (!exam) return null;
-    const tbil = exam.values['TBIL'], inr = exam.values['INR'], crea = exam.values['CREA'];
-    if (tbil == null || inr == null || crea == null) return null;
-    const tB = Math.max(1.0, tbil / 17.1);           // umol/L → mg/dL
-    const tC = Math.max(1.0, Math.min(4.0, crea / 88.4)); // umol/L → mg/dL, cap 4
-    const tI = Math.max(1.0, inr);
-    const meld = Math.round(3.78 * Math.log(tB) + 11.2 * Math.log(tI) + 9.57 * Math.log(tC) + 6.43);
-    const na = exam.values['Na'];
-    if (na != null) {
-      const naSafe = Math.max(125, Math.min(137, na));
-      const meldNa = Math.round(meld + 1.32 * (137 - naSafe) - 0.033 * meld * (137 - naSafe));
-      return { meld, meldNa, hasNa:true };
-    }
-    return { meld, meldNa:null, hasNa:false };
-  },
-
-  // ---------- C3: Child-Pugh 评分 ----------
-  computeChildPugh(exam) {
-    if (!exam) return null;
-    const tbil = exam.values['TBIL'], alb = exam.values['ALB'], inr = exam.values['INR'];
-    if (tbil == null && alb == null && inr == null) return null;
-    let score = 0, labItems = 0;
-    if (tbil != null) { labItems++; score += tbil < 34 ? 1 : tbil <= 51 ? 2 : 3; }
-    if (alb  != null) { labItems++; score += alb  > 35 ? 1 : alb  >= 28 ? 2 : 3; }
-    if (inr  != null) { labItems++; score += inr  < 1.7 ? 1 : inr  <= 2.3 ? 2 : 3; }
-    // 临床项（腹水/肝性脑病）：有录入值则用，否则默认最优（1分）
-    const asc = exam.cpAscites != null ? exam.cpAscites : 0; // 0=无/1=轻度/2=中重度
-    const enc = exam.cpEnceph  != null ? exam.cpEnceph  : 0; // 0=无/1=I-II级/2=III-IV级
-    score += (asc === 0 ? 1 : asc === 1 ? 2 : 3) + (enc === 0 ? 1 : enc === 1 ? 2 : 3);
-    const hasClinical = exam.cpAscites != null || exam.cpEnceph != null;
-    let grade = labItems >= 2 ? (score <= 6 ? 'A' : score <= 9 ? 'B' : 'C') : '';
-    return { score, grade, labItems, hasClinical, hasINR: inr != null };
-  },
-
   _renderConsecAlert() {
     const alerts = this.detectConsecutiveAbnormal(3);
     if (!alerts.length) return '';
@@ -347,32 +321,6 @@ const App = {
     </div>`;
   },
 
-  _renderClinicalScores(exam) {
-    const meld = this.computeMELD(exam);
-    const cp   = this.computeChildPugh(exam);
-    if (!meld && !cp) return '';
-    let items = '';
-    if (meld) {
-      const mc = meld.meld < 10 ? {l:'代偿期',c:'#16A34A'} : meld.meld < 20 ? {l:'中等',c:'#D97706'} : {l:'失代偿',c:'#DC2626'};
-      items += `<div class="cs-item"><div class="cs-n" style="color:${mc.c}">${meld.meld}</div><div class="cs-l">MELD</div><div class="cs-d" style="color:${mc.c}">${mc.l}</div></div>`;
-      if (meld.meldNa) items += `<div class="cs-item"><div class="cs-n" style="color:${mc.c}">${meld.meldNa}</div><div class="cs-l">MELD-Na</div><div class="cs-d">含Na修正</div></div>`;
-    }
-    if (cp) {
-      const gc = cp.grade==='A'?'#16A34A':cp.grade==='B'?'#D97706':cp.grade==='C'?'#DC2626':'#94A3B8';
-      items += `<div class="cs-item"><div class="cs-n" style="color:${gc}">${cp.score}</div><div class="cs-l">Child-Pugh</div><div class="cs-d" style="color:${gc};font-weight:700">${cp.grade?'Child-'+cp.grade:'数据不足'}</div></div>`;
-    }
-    const notes = [];
-    if (!meld) notes.push('录入 INR 可计算 MELD');
-    else if (!meld.hasNa) notes.push('录入血钠可得 MELD-Na');
-    if (cp && !cp.hasINR) notes.push('录入 INR 完善 Child-Pugh');
-    if (cp && !cp.hasClinical) notes.push('腹水/肝性脑病分级录入后可精确 Child-Pugh');
-    return `<div class="card" style="margin-bottom:18px">
-      <div class="card-title"><span class="dot" style="background:#B45309"></span>临床评分 <span class="badge">仅供参考，以临床诊断为准</span></div>
-      <div class="cs-row">${items}</div>
-      ${notes.length?`<div class="cs-note">💡 ${notes.join('　·　')}</div>`:''}
-    </div>`;
-  },
-
   // ---------- 乙肝五项自动判读 ----------
   interpretHBV(exam) {
     if (!exam) return null;
@@ -382,7 +330,10 @@ const App = {
       const v = exam.values[k];
       if (v == null) { pos[k] = null; return; }
       have++;
-      pos[k] = evalIndicator(k, v).status === 'high'; // 高于参考上限 → 阳性
+      const def = INDICATOR_MAP[k];
+      const st = evalIndicator(k, v).status;
+      // 常规标志物：高于上限=阳性；e抗体等 inverted 标志物：达到下限(status normal)=阳性
+      pos[k] = def && def.inverted ? (st === 'normal') : (st === 'high');
     });
     if (have < 3) return null; // 数据不足，不判读
     const { HBsAg, HBeAg, AntiHBs, AntiHBe, AntiHBc } = pos;
@@ -475,7 +426,7 @@ const App = {
     }
     const abn5 = c.abn.slice(0,5);
     const tipsHtml = abn5.length
-      ? `<div class="tips-title">关注指标（偏高/偏低）</div><ul class="tips-list">${abn5.map(a=>{const def=INDICATOR_MAP[a.k];return `<li>${this.indName(a.k)} <b>${a.v} ${def.unit}</b> ${a.r.arrow} ${a.r.label}</li>`;}).join('')}</ul>`
+      ? `<div class="tips-title">关注指标（偏高/偏低）</div><ul class="tips-list">${abn5.map(a=>{const def=INDICATOR_MAP[a.k];return `<li class="${a.r.status}">${this.indName(a.k)} <b>${a.v} ${def.unit}</b> <span class="ts-flag">${a.r.arrow} ${a.r.label}</span></li>`;}).join('')}</ul>`
       : `<div class="tips-ok">全部重点指标处于正常范围</div>`;
 
     const show = this.data.settings.show;
@@ -792,7 +743,7 @@ const App = {
       html += `<div class="cat-head"><span class="dot" style="background:#0EA5E9"></span><span style="color:#0284C7">💊 服药信息</span></div>
         <div style="padding:0 4px">${names.map(n=>`<span class="chip" style="background:#E0F2FE;color:#0369A1;margin:2px 4px 2px 0">${n}</span>`).join('')}${e.medNote?`<div style="margin-top:8px;font-size:13px;color:var(--text-2)">${e.medNote}</div>`:''}</div>`;
     }
-    html += `<div style="text-align:right;margin-top:16px"><button class="btn btn-ghost btn-sm" onclick="window.print()">${svgIcon('print')}打印</button> <button class="btn btn-ghost btn-sm" onclick="App.closeModal()">${svgIcon('close')}关闭</button></div>`;
+    html += `<div style="text-align:right;margin-top:16px"><button class="btn btn-ghost btn-sm" onclick="App.closeModal()">${svgIcon('close')}关闭</button></div>`;
     document.getElementById('modalBody').innerHTML = html;
     document.getElementById('modalMask').classList.add('show');
   },
@@ -801,6 +752,7 @@ const App = {
     if (!confirm('确定删除这份报告？此操作不可撤销。')) return;
     this.data.examinations = this.data.examinations.filter(x=>x.id!==id);
     this.save(); this.renderRecords(); this.renderDashboard();
+    this.toast('报告已删除','info');
   },
 
   editRecord(id) {
@@ -820,13 +772,14 @@ const App = {
   startInput() {
     this.editingId = null;
     this.draft = { id:'exam_'+Date.now(), date:new Date().toISOString().slice(0,10), facility:'', type:'',
-                   note:'', usNote:'', meds:[], medNote:'', values:{}, cpAscites:null, cpEnceph:null };
+                   note:'', usNote:'', meds:[], medNote:'', values:{} };
     document.getElementById('inputTitle').textContent = '录入新报告';
     this.renderInputForm();
   },
   cancelInput() {
     this.draft = null; this.editingId = null;
     this.go('records');
+    this.toast('已取消编辑','info');
   },
   // 录入显示所有检查类别（内置 + 自定义），填哪个算哪个
   activeCatIds() {
@@ -847,7 +800,7 @@ const App = {
       <div class="sec-head" style="border-left-color:#64748B" onclick="App.toggleSec('sec-basic')">
         <span>📋 基本信息</span><span class="chev">▾</span></div>
       <div class="sec-body"><div class="form-grid">
-        <div class="fld"><label>检查日期</label>
+        <div class="fld"><label>检查日期 <span class="req">*</span></label>
           <div class="date-cal-wrap">
             <input type="text" inputmode="numeric" id="f_date" maxlength="10" placeholder="yyyy/mm/dd"
               value="${d.date?d.date.replace(/-/g,'/'):''}"
@@ -858,14 +811,14 @@ const App = {
             </button>
             <input type="date" id="f_date_picker" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0" onchange="App.onDatePickerChange(this)">
           </div></div>
-        <div class="fld"><label>报告类型 <span class="ref">可新增</span></label>
+        <div class="fld"><label>报告类型 <span class="req">*</span> <span class="ref">可新增</span></label>
           <select class="inp" id="f_type" onchange="App.onPickType(this)">
             <option value="">— 选择 —</option>
             ${commonTypes.map(t=>`<option value="${t}" ${d.type===t?'selected':''}>${t}</option>`).join('')}
             ${d.type && !commonTypes.includes(d.type) ? `<option value="${d.type}" selected>${d.type}</option>` : ''}
             <option value="__new__">＋ 新报告类型…</option>
           </select></div>
-        <div class="fld"><label>检查机构 <span class="ref">可新增</span></label>
+        <div class="fld"><label>检查机构 <span class="req">*</span> <span class="ref">可新增</span></label>
           <select class="inp" id="f_facility" onchange="App.onPickFacility(this)">
             <option value="">— 选择 —</option>
             ${this.facilityNames().map(n=>`<option value="${n}" ${d.facility===n?'selected':''}>${n}</option>`).join('')}
@@ -880,11 +833,11 @@ const App = {
       <div class="sec-head" style="border-left-color:#0EA5E9" onclick="App.toggleSec('sec-meds')">
         <span style="color:#0284C7">💊 服药信息</span><span class="chev">▾</span></div>
       <div class="sec-body">
-        <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px">勾选本次报告期间正在服用的药物：</div>
+        <div style="font-size:12.5px;color:var(--text-2);margin-bottom:10px">勾选本次报告期间正在服用的药物：${meds.length?'<span class="req">*</span>':''}</div>
         <div class="med-checks" id="medChecks">${
           meds.length ? meds.map(m=>{
             const info=[m.doseAmt,m.freqTimes?`每日${m.freqTimes}次`:'',m.freqPills?`每次${m.freqPills}粒`:''].filter(Boolean).join(' ');
-            return `<label class="medchk ${d.meds.includes(m.id)?'on':''}"><input type="checkbox" data-med="${m.id}" ${d.meds.includes(m.id)?'checked':''} onchange="this.parentElement.classList.toggle('on',this.checked)"> ${m.name}${info?` <span class="dose">${info}</span>`:''}</label>`;
+            return `<label class="medchk ${d.meds.includes(m.id)?'on':''}"><input type="checkbox" data-med="${m.id}" ${d.meds.includes(m.id)?'checked':''} onchange="this.parentElement.classList.toggle('on',this.checked);document.getElementById('medChecks').classList.remove('field-err')"> ${m.name}${info?` <span class="dose">${info}</span>`:''}</label>`;
           }).join('')
             : `<span style="font-size:12.5px;color:var(--text-3)">尚未添加药物，可到「设定 › 药物管理」中添加。</span>`
         }</div>
@@ -930,6 +883,7 @@ const App = {
     el.value = parts[0].padEnd(4,'0') + '/' + parts[1].padStart(2,'0') + '/' + parts[2].padStart(2,'0');
   },
   onDateFocus(el) {
+    el.classList.remove('field-err');
     this._dseg = 0; this._dbuf = '';
     setTimeout(() => el.setSelectionRange(0, Math.min(4, el.value.length)), 0);
   },
@@ -1065,23 +1019,27 @@ const App = {
     });
   },
   onPickType(sel) {
+    sel.classList.remove('field-err');
     if (sel.value !== '__new__') return;
+    const prev = this.draft.type;             // 记住原选择，取消时恢复
     this.collectForm();                       // 先保留其他已填字段
     const v = (prompt('输入新的报告类型')||'').trim();
     if (v) {
       if (!this.data.reportTypes.includes(v)) this.data.reportTypes.push(v);
       this.draft.type = v; this.save();
-    } else { this.draft.type = this.draft.type==='__new__' ? '' : this.draft.type; }
+    } else { this.draft.type = prev; }        // 取消：恢复原选择
     this.renderInputForm();
   },
   onPickFacility(sel) {
+    sel.classList.remove('field-err');
     if (sel.value !== '__new__') return;
+    const prev = this.draft.facility;
     this.collectForm();
     const v = (prompt('输入新的检查机构')||'').trim();
     if (v) {
       if (!this.facilityNames().includes(v)) this.data.facilities.push({ name:v, doctor:'' });
       this.draft.facility = v; this.save();
-    } else { this.draft.facility = this.draft.facility==='__new__' ? '' : this.draft.facility; }
+    } else { this.draft.facility = prev; }    // 取消：恢复原选择
     this.renderInputForm();
   },
   collectForm() {
@@ -1107,7 +1065,24 @@ const App = {
   },
   saveDraft() {
     this.collectForm();
-    if (!this.draft.date){ alert('请填写检查日期'); this.scrollToSec('sec-basic'); return; }
+    // 必填项校验
+    document.querySelectorAll('#inputForm .field-err').forEach(el => el.classList.remove('field-err'));
+    const miss = [];
+    if (!this.draft.date)     miss.push({ id:'f_date',     label:'检查日期', sec:'sec-basic' });
+    if (!this.draft.type)     miss.push({ id:'f_type',     label:'报告类型', sec:'sec-basic' });
+    if (!this.draft.facility) miss.push({ id:'f_facility', label:'检查机构', sec:'sec-basic' });
+    // 服药信息：已配置药物时，至少勾选一项
+    if (this.data.medications.length && (!this.draft.meds || !this.draft.meds.length)) {
+      miss.push({ id:'medChecks', label:'服药信息', sec:'sec-meds' });
+    }
+    if (miss.length) {
+      this.scrollToSec(miss[0].sec);
+      miss.forEach(m => { const el=document.getElementById(m.id); if(el) el.classList.add('field-err'); });
+      const first=document.getElementById(miss[0].id); if(first && first.focus) first.focus();
+      this.toast('请填写必填项：'+miss.map(m=>m.label).join('、'), 'error', 3200);
+      return;
+    }
+    const _editing = !!this.editingId;
     // 新机构自动收录
     if (this.draft.facility && !this.facilityNames().includes(this.draft.facility)) {
       this.data.facilities.push({ name:this.draft.facility, doctor:'' });
@@ -1121,6 +1096,7 @@ const App = {
     this.save();
     this.draft=null; this.editingId=null;
     this.go('dashboard');
+    this.toast(_editing ? '报告已更新' : '报告已保存');
   },
 
   // ========== 趋势分析页 ==========
@@ -1240,6 +1216,7 @@ const App = {
     this.download(blob, `health_report_${new Date().toISOString().slice(0,10)}.json`);
     localStorage.setItem(EXPORT_KEY, Date.now().toString());
     this.checkExportWarn();
+    this.toast('已导出 JSON 备份');
   },
   importJSON(){ document.getElementById('fileInput').click(); },
   handleFile(e) {
@@ -1265,8 +1242,8 @@ const App = {
         this.renderDashboard();
         if (this.currentView === 'settings') this.renderSettings();
         this.go('dashboard');
-        alert('导入成功！报告记录和所有设定数据均已恢复。');
-      } catch(err){ alert('导入失败：'+err.message); }
+        this.toast('导入成功，数据已恢复', 'success', 3200);
+      } catch(err){ this.toast('导入失败：'+err.message, 'error', 4000); }
     };
     rd.readAsText(file);
     e.target.value='';
@@ -1296,19 +1273,15 @@ const App = {
     });
     return rows;
   },
-  exportCSV() {
-    const rows = this.buildMatrix();
-    const csv = '﻿' + rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
-    this.download(new Blob([csv],{type:'text/csv'}), `health_report_${new Date().toISOString().slice(0,10)}.csv`);
-  },
   exportExcel() {
-    if (typeof XLSX==='undefined'){ alert('Excel库未加载，请检查网络或改用CSV导出'); return; }
+    if (typeof XLSX==='undefined'){ this.toast('Excel 库未加载，请检查网络','error',3600); return; }
     const rows = this.buildMatrix();
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = rows[0].map((_,i)=>({wch: i<4?14:12}));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '健康报告');
     XLSX.writeFile(wb, `health_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    this.toast('已导出 Excel');
   },
 
   // ========== 导出提醒（周期可设，0=关闭） ==========
@@ -1342,7 +1315,7 @@ const App = {
         <div class="fld"><label>出生年</label><input class="inp" type="number" id="p_birthYear" value="${p.birthYear||''}" placeholder="如 1985"></div>
         <div class="fld"><label>身高 (cm)</label><input class="inp" type="number" step="any" id="p_height" value="${p.height||''}" oninput="App._updateBmi()"></div>
         <div class="fld"><label>体重 (kg)</label><input class="inp" type="number" step="any" id="p_weight" value="${p.weight||''}" oninput="App._updateBmi()"></div>
-        <div class="fld"><label>BMI <span class="ref">自动计算</span></label><input class="inp" id="p_bmi" value="${bmiVal}" readonly placeholder="填身高体重后自动算" style="background:#F8FAFC;font-weight:700;color:var(--primary)"><span class="live" id="bmiLive"></span></div>
+        <div class="fld"><label>BMI <span class="ref">自动计算</span></label><input class="inp" id="p_bmi" value="${bmiVal}" readonly placeholder="填身高体重后自动算" style="font-weight:700;color:var(--primary)"><span class="live" id="bmiLive"></span></div>
         <div class="fld"><label>血型</label><input class="inp" id="p_bloodType" value="${p.bloodType||''}" placeholder="如 A / O / Rh+"></div>
         <div class="fld"><label>复查间隔 (月)</label><input class="inp" type="number" id="p_recheckMonths" value="${p.recheckMonths||6}" placeholder="6"></div>
         <div class="fld" style="grid-column:1/-1"><label>健康备注</label><textarea id="p_note" rows="2" placeholder="既往病史、过敏、家族史等">${p.note||''}</textarea></div>
@@ -1599,6 +1572,7 @@ const App = {
     p.height=g('p_height'); p.weight=g('p_weight'); p.bloodType=g('p_bloodType'); p.note=g('p_note');
     p.recheckMonths=g('p_recheckMonths')||6;
     this.save(); this.renderSettings(); this.renderDashboard();
+    this.toast('基础信息已保存');
   },
   _bmiStatus(bmi) {
     // 中国成人 BMI 标准：偏瘦 <18.5，正常 18.5–23.9，超重 24–27.9，肥胖 ≥28
@@ -1624,13 +1598,16 @@ const App = {
   addReportType() {
     const el=document.getElementById('newRT'), v=el.value.trim();
     if (!v) return;
-    if (!this.data.reportTypes.includes(v)) this.data.reportTypes.push(v);
+    const exists = this.data.reportTypes.includes(v);
+    if (!exists) this.data.reportTypes.push(v);
     el.value='';
     this.save(); this.renderSettings();
+    this.toast(exists ? '该类型已存在' : '报告类型已添加', exists?'info':'success');
   },
   delReportType(i) {
     this.data.reportTypes.splice(i,1);
     this.save(); this.renderSettings();
+    this.toast('报告类型已删除','info');
   },
   addFacility() {
     const el=document.getElementById('newFac'), v=el.value.trim();
@@ -1640,9 +1617,11 @@ const App = {
     if (ex) { if (doc) ex.doctor=doc; }            // 同名机构则更新主治医生
     else this.data.facilities.push({ name:v, doctor:doc });
     this.save(); this.renderSettings();
+    this.toast(ex ? '机构信息已更新' : '机构已添加');
   },
   delFacility(i) {
     this.data.facilities.splice(i,1); this.save(); this.renderSettings();
+    this.toast('机构已删除','info');
   },
   _refreshMedChecks() {
     const mc=document.getElementById('medChecks');
@@ -1655,7 +1634,7 @@ const App = {
   },
   addMedication() {
     const name=document.getElementById('med_name').value.trim();
-    if (!name){ alert('请输入药物名称'); return; }
+    if (!name){ this.toast('请输入药物名称','error'); return; }
     this.data.medications.push({
       id:'med_'+Date.now(), name,
       doseAmt: document.getElementById('med_doseAmt')?.value.trim()||'',
@@ -1664,6 +1643,7 @@ const App = {
       note: document.getElementById('med_note').value.trim()
     });
     this.save(); this.renderSettings(); this._refreshMedChecks();
+    this.toast('药物已添加');
   },
   editMedication(id) { this.editingMedId=id; this.renderSettings(); },
   cancelEditMedication() { this.editingMedId=null; this.renderSettings(); },
@@ -1678,20 +1658,13 @@ const App = {
     m.note=g('medit_note');
     this.editingMedId=null;
     this.save(); this.renderSettings(); this._refreshMedChecks();
+    this.toast('药物已更新');
   },
   delMedication(id) {
     if (!confirm('删除该药物？')) return;
     this.data.medications = this.data.medications.filter(m=>m.id!==id);
     this.save(); this.renderSettings(); this._refreshMedChecks();
-  },
-  moveCat(id, dir) {
-    const order = this.data.catOrder;
-    const i = order.indexOf(id);
-    if (i < 0) return;
-    const j = i + dir;
-    if (j < 0 || j >= order.length) return;
-    [order[i], order[j]] = [order[j], order[i]];
-    this.save(); this.renderSettings();
+    this.toast('药物已删除','info');
   },
   _catDragSrc: null,
   catDragStart(e, id) {
@@ -1773,13 +1746,14 @@ const App = {
   },
   addCustomCategory() {
     const name=document.getElementById('newCC').value.trim();
-    if (!name){ alert('请输入类别名称'); return; }
+    if (!name){ this.toast('请输入类别名称','error'); return; }
     const palette=['#6366F1','#DB2777','#0D9488','#CA8A04','#9333EA','#0EA5E9','#DC2626'];
     const color=palette[this.data.customCategories.length % palette.length];
     const newCat = { id:'cc_'+Date.now(), name, nameShort:name, color, custom:true, indicators:[] };
     this.data.customCategories.push(newCat);
     if (this.data.catOrder) this.data.catOrder.push(newCat.id);
     this.save(); this.renderSettings();
+    this.toast('类别已创建');
   },
   delCustomCategory(id) {
     if (!confirm('删除该类别及其项目定义？（已录入的历史数值不会被删除，但将不再显示）')) return;
@@ -1788,6 +1762,7 @@ const App = {
     this.data.customCategories=this.data.customCategories.filter(c=>c.id!==id);
     if (this.data.catOrder) this.data.catOrder=this.data.catOrder.filter(x=>x!==id);
     this.save(); this.renderSettings();
+    this.toast('类别已删除','info');
   },
   renameCustomCategory(id, val) {
     const c=this.data.customCategories.find(x=>x.id===id);
@@ -1797,7 +1772,7 @@ const App = {
     const box=btn.closest('.cc-add');
     const g=f=>box.querySelector(`[data-f="${f}"]`).value.trim();
     const name=g('name');
-    if (!name){ alert('请输入项目名'); return; }
+    if (!name){ this.toast('请输入项目名','error'); return; }
     const min=g('min'), max=g('max'), dec=g('decimals');
     const cat=this.data.customCategories.find(c=>c.id===catId);
     if (!cat) return;
@@ -1808,6 +1783,7 @@ const App = {
     });
     this.registerCustom();
     this.save(); this.renderSettings();
+    this.toast('项目已添加');
   },
   editCustomInd(catId, key) { this.editingCustomInd={catId,key}; this.renderSettings(); },
   cancelEditCustomInd() { this.editingCustomInd=null; this.renderSettings(); },
@@ -1826,12 +1802,14 @@ const App = {
     this.editingCustomInd=null;
     this.registerCustom();
     this.save(); this.renderSettings();
+    this.toast('项目已更新');
   },
   delCustomIndicator(catId, key) {
     const cat=this.data.customCategories.find(c=>c.id===catId);
     if (cat) cat.indicators=cat.indicators.filter(i=>i.key!==key);
     delete INDICATOR_MAP[key];
     this.save(); this.renderSettings();
+    this.toast('项目已删除','info');
   }
 };
 
