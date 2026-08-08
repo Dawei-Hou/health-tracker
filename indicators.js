@@ -42,11 +42,7 @@ const INDICATOR_CATEGORIES = [
       { key: 'CREA',  name: '肌酐',              unit: 'umol/L',     min: 57,   max: 97,    decimals: 0 },
       { key: 'B2MG',  name: 'β2-微球蛋白',       unit: 'mg/L',       min: 0.97, max: 2.64,  decimals: 2 },
       { key: 'eGFR',  name: '肾小球滤过率',      unit: 'mL/min/L',   min: 90,   max: null,  decimals: 1 },
-      { key: 'UA',    name: '尿酸',              unit: 'umol/L',     min: 208,  max: 428,   decimals: 0, focus: true },
-      { key: 'INR',   name: '国际标准化比值',    unit: '',           min: 0.8,  max: 1.3,   decimals: 2 },
-      { key: 'Na',    name: '血钠',              unit: 'mmol/L',     min: 137,  max: 147,   decimals: 1 },
-      { key: 'K',     name: '血钾',              unit: 'mmol/L',     min: 3.5,  max: 5.5,   decimals: 2 },
-      { key: 'Ca',    name: '血钙',              unit: 'mmol/L',     min: 2.11, max: 2.52,  decimals: 2 }
+      { key: 'UA',    name: '尿酸',              unit: 'umol/L',     min: 208,  max: 428,   decimals: 0, focus: true }
     ]
   },
   {
@@ -125,9 +121,9 @@ const INDICATOR_CATEGORIES = [
     nameShort: '超声',
     icon: 'scan',
     indicators: [
-      { key: 'LIV_L_T',  name: '肝左叶厚径',       unit: 'mm', min: null, max: 60,  decimals: 0 },
-      { key: 'LIV_L_LS', name: '肝左叶上下径',     unit: 'mm', min: null, max: 90,  decimals: 0 },
-      { key: 'LIV_R_OB',  name: '肝右叶斜径',     unit: 'mm', min: null, max: 140, decimals: 0 },
+      { key: 'LIV_L_T',  name: '肝左叶厚径',     unit: 'mm', min: null, max: 60,  decimals: 0 },
+      { key: 'LIV_L_LS', name: '肝左叶上下径',   unit: 'mm', min: null, max: 90,  decimals: 0 },
+      { key: 'LIV_R_OB', name: '肝右叶斜径',     unit: 'mm', min: null, max: 140, decimals: 0 },
       { key: 'SP_SUP_L', name: '平卧位脾脏长径', unit: 'mm', min: null, max: 110, decimals: 0 },
       { key: 'SP_SUP_T', name: '平卧位脾脏厚径', unit: 'mm', min: null, max: 40,  decimals: 0 },
       { key: 'SP_RIB_L', name: '脾肋缘长径',     unit: 'mm', min: null, max: 120, decimals: 0 },
@@ -140,14 +136,43 @@ const INDICATOR_CATEGORIES = [
     ]
   },
   {
-    id: 'tumor_markers',
-    name: '肿瘤标志物',
-    nameShort: '肿标',
+    id: 'estradiol',
+    name: '雌二醇测定',
+    nameShort: '雌二醇',
     icon: 'activity',
     indicators: [
-      { key: 'AFP',     name: '甲胎蛋白',              unit: 'ng/mL',   min: 0, max: 7,   decimals: 1, focus: true },
-      { key: 'AFP_L3',  name: 'AFP-L3 比率',           unit: '%',       min: 0, max: 10,  decimals: 1, focus: true },
-      { key: 'DCP',     name: '异常凝血酶原 PIVKA-II', unit: 'mAU/mL', min: 0, max: 40,  decimals: 1, focus: true }
+      { key: 'E2', name: '雌二醇', unit: 'pg/mL', min: null, max: null, decimals: 2 }
+    ]
+  },
+  {
+    id: 'phosphorus',
+    name: '无机磷测定',
+    nameShort: '无机磷',
+    icon: 'flask',
+    indicators: [
+      { key: 'Ca', name: '钙', unit: 'mmol/L', min: 2.11, max: 2.52, decimals: 2 },
+      { key: 'P',  name: '磷', unit: 'mmol/L', min: 0.85, max: 1.51, decimals: 2 }
+    ]
+  },
+  {
+    id: 'hbc_igm',
+    name: '乙肝核心IgM抗体',
+    nameShort: '核心IgM',
+    icon: 'shield',
+    indicators: [
+      { key: 'AntiHBcIgM', name: '乙肝核心IgM抗体', unit: 'S/CO', min: 0, max: 1, decimals: 2, focus: true }
+    ]
+  },
+  {
+    id: 'hcc_triple',
+    name: '肝癌三联检',
+    nameShort: '肝癌三联',
+    icon: 'activity',
+    indicators: [
+      { key: 'AFP',      name: '甲胎蛋白',          unit: 'ng/mL', min: 0, max: 10, decimals: 2, focus: true },
+      { key: 'AFP_L3',   name: '甲胎蛋白异质体',    unit: 'ng/mL', min: 0, max: 1,  decimals: 2 },
+      { key: 'AFP_L3_R', name: '甲胎蛋白异质体比率', unit: '%',     min: 0, max: 10, decimals: 1 },
+      { key: 'DCP',      name: '异常凝血酶原',      unit: 'ng/mL', min: 0, max: 40, decimals: 2, focus: true }
     ]
   }
 ];
