@@ -806,10 +806,10 @@ const App = {
               value="${d.date?d.date.replace(/-/g,'/'):''}"
               onfocus="App.onDateFocus(this)" onclick="App.onDateClick(this)"
               onkeydown="App.onDateKeydown(this,event)" oninput="App.onDateInput(this)">
-            <button type="button" class="date-cal-btn" onclick="App.showDatePicker()" title="日历选择">
+            <span class="date-cal-btn" title="日历选择">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </button>
-            <input type="date" id="f_date_picker" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0" onchange="App.onDatePickerChange(this)">
+              <input type="date" id="f_date_picker" class="date-native" value="${d.date||''}" onchange="App.onDatePickerChange(this)">
+            </span>
           </div></div>
         <div class="fld"><label>报告类型 <span class="req">*</span> <span class="ref">可新增</span></label>
           <select class="inp" id="f_type" onchange="App.onPickType(this)">
@@ -935,14 +935,6 @@ const App = {
     if (digits.length > 4) v = digits.slice(0,4)+'/'+digits.slice(4);
     if (digits.length > 6) v = digits.slice(0,4)+'/'+digits.slice(4,6)+'/'+digits.slice(6);
     el.value = v; this._dbuf = '';
-  },
-  showDatePicker() {
-    const picker = document.getElementById('f_date_picker');
-    if (!picker) return;
-    const cur = document.getElementById('f_date')?.value||'';
-    const parts = cur.split('/');
-    if (parts.length===3 && parts[0].length===4) picker.value = `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
-    try { picker.showPicker(); } catch(e) { picker.click(); }
   },
   onDatePickerChange(picker) {
     const el = document.getElementById('f_date');

@@ -368,6 +368,9 @@ select,.inp{padding:9px 12px;border:1px solid var(--border);border-radius:10px;b
 .date-cal-wrap input[type=text]{flex:1;padding-right:38px}
 .date-cal-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;padding:4px;color:var(--text-2);display:flex;align-items:center;border-radius:6px;transition:.15s}
 .date-cal-btn:hover{color:var(--primary);background:#EFF6FF}
+/* 日历图标上叠加真实透明的原生日期输入，点击直接唤起系统选择器（移动端可靠） */
+.date-native{position:absolute;inset:-6px;width:calc(100% + 12px);height:calc(100% + 12px);opacity:0;cursor:pointer;padding:0;border:none;background:none}
+.date-native::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
 .med-row{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:#F8FBFF;gap:10px;flex-wrap:wrap}
 .med-row.editing{border-color:#38BDF8;background:#F0F9FF;box-shadow:0 0 0 3px rgba(56,189,248,.15)}
 .med-row .dose{font-size:12px;font-weight:600;color:#0284C7;background:#E0F2FE;padding:2px 8px;border-radius:12px;margin-left:4px}
@@ -456,11 +459,12 @@ select,.inp{padding:9px 12px;border:1px solid var(--border);border-radius:10px;b
   .topbar .actions .btn{flex:1;justify-content:center}
   #bottomnav{
     display:flex;position:fixed;bottom:0;left:0;right:0;
-    background:rgba(255,255,255,.94);backdrop-filter:blur(12px);
+    background:var(--card);
     border-top:1px solid var(--border);z-index:100;padding:6px 4px;
     padding-bottom:calc(6px + env(safe-area-inset-bottom));
     padding-left:max(4px,env(safe-area-inset-left));padding-right:max(4px,env(safe-area-inset-right));
     box-shadow:0 -4px 20px rgba(16,24,40,.08);
+    transform:translateZ(0);will-change:transform;
   }
   #bottomnav .nav-item{flex-direction:column;gap:3px;padding:6px 2px;font-size:10.5px;border-radius:10px;justify-content:center;color:var(--text-3)}
   #bottomnav .nav-item.active{background:transparent;color:var(--primary);box-shadow:none}
@@ -483,7 +487,9 @@ select,.inp{padding:9px 12px;border:1px solid var(--border);border-radius:10px;b
   .rec-card .rec-meta{max-width:100%}
   .cc-add{flex-direction:column;align-items:stretch}
   .cc-add .inp{max-width:100%!important}
-  .input-bar .jump{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .input-bar{gap:8px}
+  .input-bar .jump{order:-1;flex:1 0 100%;width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .input-bar > .btn{flex:1;justify-content:center}
   .settings-tabs{gap:3px;padding:4px}
   .st-tab{flex-direction:column;gap:3px;padding:8px 4px;font-size:11px}
   .st-tab .st-ic{font-size:17px}
